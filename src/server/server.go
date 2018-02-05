@@ -20,7 +20,7 @@ type Book struct {
 	Publisher string `json:"publisher"`
 }
 
-//Função que faz a requisição de todos os livros na DB
+//Função que faz a requisição de todos os livros no BD
 func getAllBooks(w http.ResponseWriter, r *http.Request) {
 	var books []*Book //Cria um array de livros, a serem transformados em JSON
 
@@ -56,8 +56,42 @@ func getAllBooks(w http.ResponseWriter, r *http.Request) {
 	w.Write(booksJson) //Devolve a resposta
 }
 
+//Função que faz a requisição de um livro único no BD
 func getSingleBook(w http.ResponseWriter, r *http.Request) {
+	book := new (Book) //Cria um novo livro
+	vars := mux.Vars(r) //Resgata as variáveis enviadas na request
 
+	rows, err := database.Query("SELECT * FROM book WHERE id = " + vars["id"]) //Faz a requisição ao banco de dados
+
+	//Caso haja um erro, as operações não podem continuar
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	for rows.Next() {
+		err = rows.Scan(&book.Id, &book.Name, &book.Description, &book.Author, &book.Publisher) //Lê os campos da resposta
+
+		if err != nil {
+			log.Println(err)
+			return
+		}
+	}
+
+	if book.Id == 0 { //Se o id do livro é igual a zero, quer dizer que não houveram resposta
+		w.Write(nil)
+		return
+	}
+
+	bookJson, err := json.Marshal(book) //Serializa o livro em JSON
+
+	//Caso haja um erro, como type mismatch, a operação deve ser cancelada
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	w.Write(bookJson) //Retorna a resposta
 }
 
 func postSingleBook(w http.ResponseWriter, r *http.Request) {
@@ -71,7 +105,7 @@ func main() {
 
 	//Configura-se dois endpoints serem acessados por outras aplicações
 	router.HandleFunc("/books", getAllBooks).Methods("GET") 
-	router.HandleFunc("/book/{id}/", getSingleBook).Methods("GET")
+	router.HandleFunc("/book/{id}", getSingleBook).Methods("GET")
 	router.HandleFunc("/book", postSingleBook).Methods("POST")
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
